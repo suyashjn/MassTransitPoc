@@ -23,16 +23,27 @@ namespace MassTransitPoc.Controllers
         {
             try
             {
+                using var source = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                 var endpoint = await _sendEndpointProvider.GetSendEndpoint(new Uri(AppConfiguration.queueEndpont));
-                await endpoint.SendBatch(Enumerable.Range(0, noOfTimes).Select(_ => DeepClone(message)));
+                await endpoint.SendBatch(Enumerable.Range(0, noOfTimes).Select(_ => DeepClone(message)), source.Token);
             }
             catch(RabbitMQ.Client.Exceptions.PublishException ex)
             {
                 _logger.LogCritical(ex, "Failed to publish message of type {MessageType}", message.GetType().Name);
                 return StatusCode(StatusCodes.Status500InternalServerError,
                     new { 
-                        Error = "Failed to publish messages", 
+                        Error = "Failed to publish messages, queue may be at max capacity", 
                         Details = ex.Message 
+                    });
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogCritical(ex, "Failed to publish message of type {MessageType}", message.GetType().Name);
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        Error = "Failed to publish messages due to timeout",
+                        Details = ex.Message
                     });
             }
             return Accepted();
