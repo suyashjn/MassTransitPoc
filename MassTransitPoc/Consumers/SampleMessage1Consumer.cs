@@ -22,7 +22,7 @@ namespace MassTransitPoc.Consumers
                 _logger.LogDebug("Simulating consumer failure for message {MessageId}", context.MessageId);
                 throw new InvalidOperationException("Simulated consumer failure.");
             }
-            //await Task.Delay(TimeSpan.FromMinutes(2));    // Do something
+            await Task.Delay(TimeSpan.FromMinutes(2));    // Do something
             await Task.Delay(100);  // Do something
         }
     }

@@ -37,31 +37,32 @@ builder.Services.AddMassTransit(x =>
         cfg.ReceiveEndpoint("my-message-queue", e =>
         {
             // Configure Max Queue Length
-            e.SetQueueArgument("x-max-length", 100); // max 100 messages
-            e.SetQueueArgument("x-overflow", "reject-publish");
-            // or "drop-head" if you prefer dropping oldest instead of rejecting new
+            e.SetQueueArgument("x-max-length", 1); // max 100 messages
+            e.SetQueueArgument("x-overflow", "reject-publish"); // Reject new
+            //e.SetQueueArgument("x-overflow", "reject-publish-dlx"); // Reject new message & move it to DLX
+            //e.SetQueueArgument("x-overflow", "reject-publish"); // or "drop-head" if you prefer dropping oldest
+
+            //e.ConcurrentMessageLimit = 1; // No. of concurrent messages that can be consumed at a given point of time
+            //e.PrefetchCount = 1;            // No. of messages to fetch from the broker
 
             e.DiscardFaultedMessages(); // Message that faults should not be moved to _error queue
 
+            e.UseMessageRetry(r => r.None());   // Don't do in memeory retry, we will use delayed redelivery instead
             if (AppConfiguration.useRetry)
             {
                 e.UseDelayedRedelivery(r => r.Exponential(
                     retryLimit: AppConfiguration.retryCount,
-                    minInterval: TimeSpan.FromMilliseconds(100),
-                    maxInterval: TimeSpan.FromMilliseconds(1000),
+                    minInterval: TimeSpan.FromMilliseconds(60000),
+                    maxInterval: TimeSpan.FromMilliseconds(120000),
                     intervalDelta: TimeSpan.FromMilliseconds(200)
                 ));
             }
-            else
-            {
-                e.UseMessageRetry(e => e.None());
-            }
 
             e.UseKillSwitch(options => options
-            .SetTrackingPeriod(m: 5)            // look back 5 minute
-            .SetActivationThreshold(50)         // after 10 messages processed
-            .SetTripThreshold(5)                // trip if >5% messages fail
-            .SetRestartTimeout(m: 5));          // wait 5 min before trying again
+                .SetTrackingPeriod(m: 5)            // look back 5 minute
+                .SetActivationThreshold(50)         // after 10 messages processed
+                .SetTripThreshold(5)                // trip if >5% messages fail
+                .SetRestartTimeout(m: 5));          // wait 5 min before trying again
 
             e.UseConsumeFilter(typeof(ConsumeFilter<>), context);
 
